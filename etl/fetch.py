@@ -41,8 +41,14 @@ _COUNTRIES = None
 def load_countries():
     global _COUNTRIES
     if _COUNTRIES is None:
-        with open(os.path.join(ROOT, "data", "countries_lookup.json")) as f:
-            _COUNTRIES = json.load(f)
+        _COUNTRIES = []
+        p0 = json.load(open(os.path.join(ROOT, "data",
+                                        "countries_lookup_part-0.json")))
+        _COUNTRIES.extend(p0["countries"])
+        for i in range(1, p0["parts"]):
+            pi = json.load(open(os.path.join(
+                ROOT, "data", f"countries_lookup_part-{i}.json")))
+            _COUNTRIES.extend(pi["countries"])
     return _COUNTRIES
 
 
