@@ -35,6 +35,63 @@ export function pointsMaterial(tex, opacity = 0.95, px = 1) {
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
 }
 
+// Plane-glyph sprite (canvas): top-down airliner silhouette, nose pointing up.
+// Used with orientedPointsMaterial so each flight renders as a tiny aircraft.
+export function planeTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const x = c.getContext('2d');
+  x.translate(32, 32);
+  x.fillStyle = '#ffffff';
+  x.shadowColor = 'rgba(255,255,255,.9)'; x.shadowBlur = 5;
+  const right = [[2.5,-23],[3.5,-14],[3.5,0],[26,9],[26,14],[3.5,19],
+                 [3.5,21],[12,26],[12,29.5],[3.5,28],[2,30.5],[0,30.5]];
+  x.beginPath();
+  x.moveTo(0, -28);
+  for (const [px, py] of right) x.lineTo(px, py);
+  for (let i = right.length - 2; i >= 0; i--) x.lineTo(-right[i][0], right[i][1]);
+  x.closePath(); x.fill();
+  return new THREE.CanvasTexture(c);
+}
+
+// Points whose sprite rotates to the object's true heading in screen space.
+// aHdg in degrees, 0 = north. The texture must point "up" (nose at top).
+export function orientedPointsMaterial(tex, px = 1, opacity = 0.95) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTex: { value: tex }, uOp: { value: opacity }, uPx: { value: px } },
+    vertexShader: `
+      attribute float aSize; attribute vec3 aColor; attribute float aHdg;
+      varying vec3 vC; varying float vAng; uniform float uPx;
+      void main(){
+        vC = aColor;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = aSize * uPx * (2.1 / -mv.z);
+        // globe-local tangent frame (+Y = north pole)
+        vec3 up = normalize(position);
+        vec3 n0 = vec3(0.0,1.0,0.0) - up * dot(up, vec3(0.0,1.0,0.0));
+        vec3 north = length(n0) > 1e-4 ? normalize(n0) : vec3(1.0,0.0,0.0);
+        vec3 east = normalize(cross(north, up));
+        float hr = radians(aHdg);
+        vec3 hdir = north * cos(hr) + east * sin(hr);
+        vec3 hv = (modelViewMatrix * vec4(hdir, 0.0)).xyz;
+        vAng = atan(hv.x, hv.y);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform sampler2D uTex; uniform float uOp;
+      varying vec3 vC; varying float vAng;
+      void main(){
+        vec2 d = gl_PointCoord - 0.5;
+        float c = cos(-vAng), s = sin(-vAng);
+        vec2 uv = mat2(c,-s,s,c) * d + 0.5;
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) discard;
+        float a = texture2D(uTex, uv).a;
+        if (a < 0.02) discard;
+        gl_FragColor = vec4(vC, a * uOp);
+      }`,
+    transparent: true, depthWrite: false, depthTest: true,
+    blending: THREE.AdditiveBlending });
+}
+
 export function createGlobe(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
