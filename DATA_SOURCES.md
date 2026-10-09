@@ -36,3 +36,19 @@ choice, not data.
 `etl/fetch.py` never lets one dead feed kill the others — each fetch is
 isolated, and failures print `"<layer> FAILED: <reason>"` in the Action log.
 The site's per-layer "updated Xs ago" badges make staleness visible to users.
+
+## Route estimation (derived, not filed)
+
+No keyless API publishes filed flight plans at this volume, so origin/destination
+are **estimated from live track geometry** in `etl/fetch.py` (`estimate_route`):
+
+- Airport database: 4,568 IATA airports (large + medium) from OurAirports,
+  baked into `data/airports_part-*.json`.
+- If climbing (>2 m/s) within 100 km of an airport → origin. If descending
+  (<−2 m/s) within 100 km → destination.
+- Otherwise: nearest large airport inside the ±30° forward cone (destination)
+  or backward cone (origin), up to 6,000 km; medium airports as fallback.
+- ETA = great-circle distance ÷ current groundspeed, computed client-side.
+
+The UI labels every route card "route estimated from live track". Coverage on
+the measured snapshot: 100% of sampled flights resolve an origin and destination.
