@@ -9,6 +9,7 @@ Usage: python fetch.py [--check]   # --check = dry run, no writes
 """
 import datetime
 import json
+import math
 import os
 import sys
 
@@ -33,6 +34,109 @@ FLIGHT_REGIONS = [
 ]
 TLE_GROUPS = ["stations", "visual", "weather", "goes",
               "sarsat", "tdrss", "planet", "spire"]
+
+# --- airports + route estimation (honest derived data, see README) ---
+_AIRPORTS = None
+_GRID = None
+
+
+def load_airports():
+    """Major airports (IATA, large+medium) from baked shards + spatial grid."""
+    global _AIRPORTS, _GRID
+    if _AIRPORTS is None:
+        _AIRPORTS = []
+        p0 = json.load(open(os.path.join(ROOT, "data", "airports_part-0.json")))
+        recs = list(p0["airports"])
+        for i in range(1, p0["parts"]):
+            pi = json.load(open(os.path.join(
+                ROOT, "data", f"airports_part-{i}.json")))
+            recs.extend(pi["airports"])
+        for r in recs:
+            _AIRPORTS.append({"iata": r[0], "name": r[1], "city": r[2],
+                              "lat": r[3], "lon": r[4],
+                              "large": r[5] == 1})
+        _GRID = {}
+        for a in _AIRPORTS:
+            key = (int(a["lat"] // 10), int(a["lon"] // 10))
+            _GRID.setdefault(key, []).append(a)
+    return _AIRPORTS, _GRID
+
+
+def _hav(lat1, lon1, lat2, lon2):
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 12742 * math.asin(math.sqrt(a))
+
+
+def _bearing(lat1, lon1, lat2, lon2):
+    dl = math.radians(lon2 - lon1)
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    x = math.sin(dl) * math.cos(p2)
+    y = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+    return (math.degrees(math.atan2(x, y)) + 360) % 360
+
+
+def _adiff(a, b):
+    return abs((a - b + 180) % 360 - 180)
+
+
+def _nearby_airports(lat, lon, grid, km=100):
+    out = []
+    c0, c1 = int(lat // 10), int(lon // 10)
+    for dc0 in (-1, 0, 1):
+        for dc1 in (-1, 0, 1):
+            for a in grid.get((c0 + dc0, c1 + dc1), ()):
+                d = _hav(lat, lon, a["lat"], a["lon"])
+                if d < km:
+                    out.append((d, a))
+    out.sort(key=lambda t: t[0])
+    return out
+
+
+def estimate_route(lat, lon, hdg, alt_m, vspeed):
+    """(orig_iata, dest_iata) or Nones. Derived from track geometry —
+    climbing/descending near an airport, else nearest large airport in the
+    forward/backward 30° cone. Honest estimate, not a filed flight plan."""
+    airports, grid = load_airports()
+    large = [a for a in airports if a["large"]]
+    near = _nearby_airports(lat, lon, grid)
+    orig = dest = None
+    if near:
+        d0, a0 = near[0]
+        if d0 < 100 and vspeed is not None:
+            if vspeed > 2:
+                orig = a0["iata"]          # climbing out -> departed here
+            elif vspeed < -2:
+                dest = a0["iata"]          # descending in -> arriving here
+    for want_dest in (True, False):
+        if want_dest and dest:
+            continue
+        if not want_dest and orig:
+            continue
+        h = hdg if want_dest else (hdg + 180) % 360
+        best = None
+        for tier in (large, airports):
+            for a in tier:
+                if abs(a["lat"] - lat) > 55:
+                    continue
+                if _adiff(_bearing(lat, lon, a["lat"], a["lon"]), h) > 30:
+                    continue
+                d = _hav(lat, lon, a["lat"], a["lon"])
+                if d > 6000:
+                    continue
+                if best is None or d < best[0]:
+                    best = (d, a)
+            if best:
+                break
+        if best:
+            if want_dest:
+                dest = best[1]["iata"]
+            else:
+                orig = best[1]["iata"]
+    return orig, dest
+
 
 # --- country lookup (point-in-polygon over baked 110m boundaries) ---
 _COUNTRIES = None
@@ -111,10 +215,14 @@ def fetch_flights(check):
             continue
         vel = s[9] or 0.0
         hdg = s[10] if s[10] is not None else 0
+        vspeed = s[11] if s[11] is not None else 0.0
+        squawk = (s[14] or "").strip() or None
+        orig, dest = estimate_route(lat, lon, hdg, alt, vspeed)
         recs.append([s[0], (s[1] or "").strip() or None,
                      round(lon, 3), round(lat, 3),
                      int(alt), round(vel, 1), int(hdg),
-                     country_of(lon, lat)])
+                     country_of(lon, lat), orig, dest, squawk,
+                     round(vspeed, 1)])
     recs.sort(key=lambda f: f[0])  # deterministic before bucketing
     total = len(recs)
     # Stratified: cap each region so receiver-dense areas can't drown the planet.
@@ -133,7 +241,8 @@ def fetch_flights(check):
             "sampling": "stratified by region (guaranteed global coverage)",
             "per_region": per_region,
             "fields": ["icao24", "callsign", "lon", "lat", "alt_m",
-                       "vel_ms", "hdg_deg", "country"]}
+                       "vel_ms", "hdg_deg", "country", "orig_iata", "dest_iata",
+                       "squawk", "vspeed_ms"]}
     parts = [recs[i:i + SHARD] for i in range(0, len(recs), SHARD)] or [[]]
     d = os.path.join(LIVE, "flights")
     if not check:
