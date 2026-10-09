@@ -43,6 +43,22 @@ export function createLayers(G, tex) {
   const flights = { list: [], pts: null, meta: null };
   const sats = { list: [], pts: null, meta: null, tick: 0 };
   const quakes = { list: [], pts: null, meta: null };
+  let borders = null;
+
+  // Country borders: baked 110m line segments, drawn once.
+  async function loadBorders() {
+    const d = await (await fetch(dataURL('countries.json'))).json();
+    const seg = [];
+    for (const ring of d.borders)
+      for (let i = 0; i < ring.length - 1; i++) {
+        seg.push(latLonToVec3(ring[i][1], ring[i][0], R * 1.002));
+        seg.push(latLonToVec3(ring[i + 1][1], ring[i + 1][0], R * 1.002));
+      }
+    const g = new THREE.BufferGeometry().setFromPoints(seg);
+    borders = new THREE.LineSegments(g, new THREE.LineBasicMaterial({
+      color: 0x4c6ef5, transparent: true, opacity: 0.38 }));
+    G.globe.add(borders);
+  }
 
   async function loadFlights() {
     const p0 = await (await fetch(dataURL('live/flights/part-0.json'))).json();
@@ -51,7 +67,7 @@ export function createLayers(G, tex) {
       all = all.concat((await (await fetch(dataURL(`live/flights/part-${i}.json`))).json()).flights);
     flights.meta = p0; flights.list = all.map(f => ({
       id: f[0], cs: f[1] || f[0], lon: f[2], lat: f[3],
-      alt: f[4], vel: f[5], hdg: f[6], t0: T0 }));
+      alt: f[4], vel: f[5], hdg: f[6], country: f[7] || null, t0: T0 }));
     flights.pts = makeCloud(flights.list.length, planeTex, PX, true);
     G.globe.add(flights.pts);
     refreshFlightPoints(0);
@@ -151,6 +167,7 @@ export function createLayers(G, tex) {
     refreshQuakes(now);
   }
   function setVisible(layer, on) {
+    if (layer === 'borders') { if (borders) borders.visible = on; return; }
     ({ flights: flights.pts, sats: sats.pts, quakes: quakes.pts })[layer].visible = on;
   }
   // Current dead-reckoned position of a flight (globe-local).
@@ -163,6 +180,6 @@ export function createLayers(G, tex) {
     return latLonToVec3(s.lat, s.lon, r);
   }
 
-  return { flights, sats, quakes, loadFlights, loadSats, loadQuakes,
+  return { flights, sats, quakes, loadFlights, loadSats, loadQuakes, loadBorders,
            update, setVisible, pick, flightPos, satPos, deadReckon };
 }
