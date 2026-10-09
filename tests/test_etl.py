@@ -22,7 +22,8 @@ def test_flight_snapshot_schema():
     meta, flights = load_flights()
     assert meta["source"] == "opensky-network"
     assert meta["fields"] == ["icao24", "callsign", "lon", "lat", "alt_m",
-                              "vel_ms", "hdg_deg", "country"]
+                              "vel_ms", "hdg_deg", "country", "orig_iata",
+                              "dest_iata", "squawk", "vspeed_ms"]
     assert meta["fetched_at"].endswith("Z")
     assert meta["sampled"] == len(flights) <= 6000
     assert meta["total_airborne"] >= len(flights) > 1000
@@ -32,6 +33,8 @@ def test_flight_snapshot_schema():
         assert f[4] > 300  # alt_m, airborne filter
         assert 0 <= f[6] < 360  # heading
         assert f[7] is None or isinstance(f[7], str)  # country tag
+        assert f[8] is None or (isinstance(f[8], str) and len(f[8]) == 3)  # orig
+        assert f[9] is None or (isinstance(f[9], str) and len(f[9]) == 3)  # dest
 
 
 def test_flight_sample_is_stratified_global():
@@ -67,6 +70,16 @@ def test_flight_country_tags():
     assert tagged / len(flights) > 0.4, f"only {tagged}/{len(flights)} tagged"
     names = {f[7] for f in flights if f[7]}
     assert len(names) > 30, "country tags should span dozens of countries"
+
+
+def test_flight_route_estimates():
+    # Route estimation: a solid majority of flights resolve an origin and
+    # destination from track geometry (honest estimate, not filed plans).
+    _, flights = load_flights()
+    orig = sum(1 for f in flights if f[8])
+    dest = sum(1 for f in flights if f[9])
+    assert orig / len(flights) > 0.5, f"orig {orig}/{len(flights)}"
+    assert dest / len(flights) > 0.5, f"dest {dest}/{len(flights)}"
 
 
 def test_dead_reckoning_math():
