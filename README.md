@@ -29,7 +29,7 @@ Live planet-scale data is public — ADS-B transponders, orbital element sets, s
 
 | Layer | Source | Captured |
 |---|---|---|
-| Flights | OpenSky Network | **11,768 airborne** → 2,500 sampled (see sampling note) |
+| Flights | OpenSky Network | **11,669 airborne** → 4,442 sampled, stratified by region |
 | Satellites | CelesTrak (8 groups) | **551 TLEs**, SGP4-propagated live |
 | Earthquakes | USGS (M2.5+, 24h) | **34 quakes**, max M5.9 |
 
@@ -81,7 +81,7 @@ The analyst is deterministic: every number is computed from the loaded scene, so
 
 1. **ETL + dead reckoning over direct client polling.** *Why:* OpenSky's anonymous tier allows ~400 req/day and most feeds lack CORS. A 5-minute Action (288 req/day) respects the limit; the client interpolates between snapshots with velocity×heading. The globe never stalls on a rate limit.
 2. **SGP4 client-side.** *Why:* TLEs change daily, not minutely — polling them is waste. satellite.js propagates 551 sats per frame for zero network cost after load.
-3. **Honest 2,500-flight cap.** *Why:* a full ~11.8k snapshot is ~600 KB — hostile to static hosting and the GitHub API. Deterministic stride sampling keeps it fair; the UI shows the true airborne total beside the sampled count.
+3. **Honest stratified 6,000-flight cap.** *Why:* a full ~11.7k snapshot is ~600 KB — hostile to static hosting and the GitHub API. Stratified sampling (per-region caps) guarantees every continent is represented instead of letting receiver-dense US/EU drown the planet; the UI shows the true airborne total beside the sampled count.
 4. **No ships.** *Why:* no keyless global AIS exists. A faked vessel layer would violate the project's founding rule ("every dot is real"), so the layer doesn't exist — documented in DATA_SOURCES.md.
 5. **Deterministic analyst first.** *Why:* counts, extrema, and geo-bins don't need an LLM, and a deterministic engine can't hallucinate a flight that isn't there. The LLM key is an upgrade for open-ended chat, never the source of numbers.
 6. **THREE.Points, not meshes.** *Why:* 3,000+ objects at 60fps means one draw call per layer. Only the tracked object gets a mesh + trail.
@@ -112,7 +112,7 @@ The analyst is deterministic: every number is computed from the loaded scene, so
 ## Maps to your profiles
 
 - **Data Engineer:** multi-feed ETL (REST + 3-line TLE parsing) on a 5-minute schedule; compact wire format with sharding for API limits; change-aware commits; honest sampling with provenance docs.
-- **Data Scientist:** measured everything — 11,768 airborne sampled to 2,500 deterministically; geo-binned hotspot analysis; SGP4 propagation validated against TLE checksums; eval-style schema tests.
+- **Data Scientist:** measured everything — 11,669 airborne stratified to 4,442 with guaranteed per-region coverage; geo-binned hotspot analysis; SGP4 propagation validated against TLE checksums; eval-style schema tests.
 - **AI Engineer:** deterministic agent over live state (no hallucination surface), tool-like intents, voice input pipeline, optional LLM escalation with localStorage-only keys.
 - **Product Manager:** "every dot is real" as the product promise; honesty UI (freshness badges, true-vs-sampled counts) as trust features; zero-key onboarding; ships deliberately omitted rather than faked.
 
