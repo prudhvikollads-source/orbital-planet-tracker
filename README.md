@@ -24,12 +24,13 @@ Live planet-scale data is public — ADS-B transponders, orbital element sets, s
 - **🎙️ Talk to Orbital** — deterministic analyst over the live scene: *"How many flights are airborne?"*, *"Where is the ISS right now?"*, *"Biggest earthquake today?"*, *"Which region is busiest?"* Push-to-talk voice included; an optional LLM key unlocks open-ended questions.
 - **🔍 Fly-to search** — 40 bundled world cities, no geocoder key.
 - **🏷️ Honesty UI** — per-layer "updated Xs ago" badges, true-vs-sampled counts, LIVE/SNAPSHOT states.
+- **🗺️ Country borders + airspace intel** — 180 country boundaries drawn on the globe; every flight tagged with the country it's over (point-in-polygon in the ETL). Click a plane to see its country; ask the analyst "flights over France?" or "busiest airspace by country?"
 
 ## 📡 Live data (measured 2026-10-09)
 
 | Layer | Source | Captured |
 |---|---|---|
-| Flights | OpenSky Network | **11,669 airborne** → 4,442 sampled, stratified by region |
+| Flights | OpenSky Network | **11,544 airborne** → 4,477 sampled, stratified by region, each tagged with its country |
 | Satellites | CelesTrak (8 groups) | **551 TLEs**, SGP4-propagated live |
 | Earthquakes | USGS (M2.5+, 24h) | **34 quakes**, max M5.9 |
 
@@ -112,7 +113,7 @@ The analyst is deterministic: every number is computed from the loaded scene, so
 ## Maps to your profiles
 
 - **Data Engineer:** multi-feed ETL (REST + 3-line TLE parsing) on a 5-minute schedule; compact wire format with sharding for API limits; change-aware commits; honest sampling with provenance docs.
-- **Data Scientist:** measured everything — 11,669 airborne stratified to 4,442 with guaranteed per-region coverage; geo-binned hotspot analysis; SGP4 propagation validated against TLE checksums; eval-style schema tests.
+- **Data Scientist:** measured everything — 11,544 airborne stratified to 4,477 with guaranteed per-region coverage, 92 countries tagged via point-in-polygon; geo-binned hotspot analysis; SGP4 propagation validated against TLE checksums; eval-style schema tests.
 - **AI Engineer:** deterministic agent over live state (no hallucination surface), tool-like intents, voice input pipeline, optional LLM escalation with localStorage-only keys.
 - **Product Manager:** "every dot is real" as the product promise; honesty UI (freshness badges, true-vs-sampled counts) as trust features; zero-key onboarding; ships deliberately omitted rather than faked.
 
