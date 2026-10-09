@@ -96,10 +96,29 @@ export function createAnalyst(getState, actions) {
     actions.flyTo(f0._lat ?? f0.lat, f0._lon ?? f0.lon);
     return true;
   }
+  function flightByCallsign(st, ql) {
+    // "where is BAW9 going?" / "track DAL1179"
+    const m = ql.match(/\b([a-z]{3}\d{1,4}[a-z]?)\b/);
+    if (!m) return false;
+    const cs = m[1].toUpperCase();
+    const f = st.flights.list.find(x => (x.cs || '').toUpperCase() === cs);
+    if (!f) return false;
+    const A = st.airports || {};
+    const o = f.orig && A[f.orig], d = f.dest && A[f.dest];
+    const route = o && d ? `${o.city || o.name} (${f.orig}) → ${d.city || d.name} (${f.dest})`
+      : d ? `→ ${d.city || d.name} (${f.dest})` : 'route unknown';
+    say(`<b>${esc(f.cs)}</b>: ${esc(route)}<br>` +
+      `${Math.round(f.alt * 3.281).toLocaleString()} ft · ${Math.round(f.vel * 1.944)} kts` +
+      (f.country ? ` · over ${esc(f.country)}` : '') +
+      `<br><span style="font-size:11px;color:var(--dim)">route estimated from live track</span>`);
+    actions.flyTo(f._lat ?? f.lat, f._lon ?? f.lon);
+    return true;
+  }
   function help() {
     say(`I answer from the live scene — try:<br>• "How many flights are airborne?"<br>` +
       `• "Where is the ISS right now?"<br>• "Biggest earthquake today?"<br>` +
       `• "Flights over France?"<br>• "Busiest airspace by country?"<br>` +
+      `• "Where is BAW9 going?"<br>` +
       `• "Fly to Tokyo"<br>• "Hide satellites"<br><br>` +
       `Add an LLM key below for open-ended questions.`);
   }
@@ -131,10 +150,10 @@ export function createAnalyst(getState, actions) {
         if (overCountry(st, ql)) return;
       }
       if (/how many|count|airborne|flying/.test(ql)) return counts(st);
-      if (/^(hide|show) /.test(ql)) {
-        const layer = /sat/.test(ql) ? 'sats' : /flight|plane/.test(ql) ? 'flights' : /quake/.test(ql) ? 'quakes' : null;
+      if (/^(hide|show) /.test(ql)) {        const layer = /sat/.test(ql) ? 'sats' : /flight|plane/.test(ql) ? 'flights' : /quake/.test(ql) ? 'quakes' : null;
         if (layer) { actions.toggle(layer, ql.startsWith('show')); return say(`Satellites ${ql.startsWith('show') ? 'on' : 'off'}.`.replace('Satellites', layer)); }
       }
+      if (/where is|where's|going/.test(ql) && flightByCallsign(st, ql)) return;
       const fly = ql.match(/fly to ([a-z .'-]+)/);
       if (fly) {
         const c = st.cities.find(c => c.name.toLowerCase().includes(fly[1].trim()));
