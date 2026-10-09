@@ -97,12 +97,16 @@ export function createAnalyst(getState, actions) {
     return true;
   }
   function flightByCallsign(st, ql) {
-    // "where is BAW9 going?" / "track DAL1179"
+    // "CMP714" or "where is BAW9 going?" — any query containing a callsign.
     const m = ql.match(/\b([a-z]{3}\d{1,4}[a-z]?)\b/);
     if (!m) return false;
     const cs = m[1].toUpperCase();
     const f = st.flights.list.find(x => (x.cs || '').toUpperCase() === cs);
-    if (!f) return false;
+    if (!f) {
+      say(`<b>${esc(cs)}</b> isn't in the current snapshot — it may have landed, ` +
+        `or be outside receiver coverage. Try another callsign.`);
+      return true;
+    }
     const A = st.airports || {};
     const o = f.orig && A[f.orig], d = f.dest && A[f.dest];
     const route = o && d ? `${o.city || o.name} (${f.orig}) → ${d.city || d.name} (${f.dest})`
@@ -154,6 +158,7 @@ export function createAnalyst(getState, actions) {
         if (layer) { actions.toggle(layer, ql.startsWith('show')); return say(`Satellites ${ql.startsWith('show') ? 'on' : 'off'}.`.replace('Satellites', layer)); }
       }
       if (/where is|where's|going/.test(ql) && flightByCallsign(st, ql)) return;
+      if (flightByCallsign(st, ql)) return;
       const fly = ql.match(/fly to ([a-z .'-]+)/);
       if (fly) {
         const c = st.cities.find(c => c.name.toLowerCase().includes(fly[1].trim()));
