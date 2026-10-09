@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORBITAL — Live Planet Intelligence · Case Study</title>
+<style>
+*{box-sizing:border-box;margin:0}body{background:#04060c;color:#dbe4f5;font:16px/1.65 system-ui,sans-serif;max-width:860px;margin:0 auto;padding:48px 24px}
+a{color:#22d3ee}.hero{border:1px solid #1c2740;border-radius:16px;padding:36px;background:linear-gradient(180deg,#0a0f1c,#04060c);margin-bottom:36px}
+.hero h1{font-size:34px;letter-spacing:2px}.hero h1 span{color:#22d3ee}
+.hero p.tag{color:#8b98b3;margin-top:8px;font-style:italic}
+h2{font-size:22px;margin:36px 0 12px;color:#fff}h2 .n{color:#22d3ee;margin-right:8px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0}
+.metric{background:#0a0f1c;border:1px solid #1c2740;border-radius:12px;padding:16px;text-align:center}
+.metric b{display:block;font-size:26px;color:#22d3ee;font-family:ui-monospace,monospace}
+.metric span{font-size:12px;color:#8b98b3}
+pre{background:#070b14;border:1px solid #1c2740;border-radius:12px;padding:16px;overflow-x:auto;font-size:12.5px;color:#9fb3d9}
+code{font-family:ui-monospace,monospace}.dec{border-left:3px solid #22d3ee;padding:4px 0 4px 16px;margin:14px 0}
+.dec b{color:#fff}.foot{margin-top:48px;padding-top:20px;border-top:1px solid #1c2740;color:#8b98b3;font-size:13px}
+ul{padding-left:20px}li{margin:6px 0}
+</style>
+</head>
+<body>
+<div class="hero">
+<h1>ORBITAL <span>·</span> Live Planet Intelligence</h1>
+<p class="tag">A mission control for the living planet — then you realize every dot is real.</p>
+<p style="margin-top:16px"><a href="https://github.com/prudhvikollads-source/orbital-planet-tracker">github.com/prudhvikollads-source/orbital-planet-tracker</a> ·
+<a href="https://prudhvikollads-source.github.io/orbital-planet-tracker/web/">live demo</a></p>
+</div>
+
+<h2><span class="n">01</span>Problem</h2>
+<p>Planet-scale live data is public — ADS-B transponders broadcast every airliner’s position, CelesTrak publishes every tracked satellite’s orbital elements, the USGS streams every significant tremor — but it lives in JSON endpoints nobody watches. Existing trackers are either paywalled, key-gated, or single-feed toys. Nobody had put the living planet in one explorable, keyless view.</p>
+
+<h2><span class="n">02</span>Solution</h2>
+<p>A static-first mission control: a GitHub Action refreshes three feeds every 5 minutes into compact JSON; a Three.js globe renders thousands of objects as GPU point clouds; satellites propagate live with SGP4; a deterministic analyst answers questions about the scene by text or voice. Zero servers, zero API keys, GitHub Pages hosting.</p>
+<div class="metrics">
+<div class="metric"><b>11,768</b><span>aircraft airborne at capture</span></div>
+<div class="metric"><b>551</b><span>satellites tracked (SGP4)</span></div>
+<div class="metric"><b>34</b><span>earthquakes, 24h</span></div>
+<div class="metric"><b>0</b><span>API keys required</span></div>
+<div class="metric"><b>6/6</b><span>tests passing</span></div>
+</div>
+
+<h2><span class="n">03</span>Architecture</h2>
+<pre>OpenSky / CelesTrak / USGS
+        │  5-min GitHub Action (288 req/day < 400 anonymous limit)
+        ▼
+data/live/*.json  (flights sharded, TLE bundle, quakes)
+        │  same-origin fetch — no CORS, no keys
+        ▼
+Static 3D site: flights dead-reckoned · sats SGP4/frame · analyst on live state</pre>
+
+<h2><span class="n">04</span>Key decisions</h2>
+<div class="dec"><b>ETL + interpolation over client polling.</b> Rate limits and missing CORS headers make direct polling fragile; a 5-minute snapshot cadence respects OpenSky’s anonymous tier while dead reckoning keeps motion smooth.</div>
+<div class="dec"><b>Honest 2,500-flight cap.</b> A full snapshot is ~600 KB — hostile to static hosting. Deterministic stride sampling keeps it fair, and the UI shows the true airborne total next to the sampled count.</div>
+<div class="dec"><b>No ships.</b> No keyless global AIS feed exists. Rather than fake vessel dots, the layer doesn’t exist — documented, not silent.</div>
+<div class="dec"><b>Deterministic analyst.</b> Counts, extrema, and geo-bins are computed from loaded data; the engine cannot hallucinate a flight. The LLM key is an upgrade for open-ended chat only.</div>
+<div class="dec"><b>One draw call per layer.</b> THREE.Points for 3,000+ objects at 60fps; only the tracked object gets a mesh and trail.</div>
+
+<h2><span class="n">05</span>Example session</h2>
+<ul>
+<li><i>"How many flights are airborne?"</i> → <b>11,768</b> right now (2,500 in this snapshot, refreshed 3m ago).</li>
+<li><i>"Where is the ISS right now?"</i> → over the South Pacific at 418 km, 7.66 km/s — globe flies you to it.</li>
+<li><i>"Biggest earthquake today?"</i> → M5.9, 62 km from a named place — camera dives to the epicenter.</li>
+<li>Click any aircraft → chase cam with trail; HUD reads callsign · altitude · speed · heading.</li>
+</ul>
+
+<div class="foot">Built with Three.js, satellite.js (SGP4), MapLibre-free procedural globe, and public feeds. Data: OpenSky Network, CelesTrak, USGS. <a href="https://github.com/prudhvikollads-source/orbital-planet-tracker">Source</a></div>
+</body>
+</html>
