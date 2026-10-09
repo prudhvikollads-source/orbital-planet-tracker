@@ -45,11 +45,15 @@ export function createLayers(G, tex) {
   const quakes = { list: [], pts: null, meta: null };
   let borders = null;
 
-  // Country borders: baked 110m line segments, drawn once.
+  // Country borders: baked 110m line segments (sharded), drawn once.
   async function loadBorders() {
-    const d = await (await fetch(dataURL('countries.json'))).json();
+    const p0 = await (await fetch(dataURL('countries_part-0.json'))).json();
+    let rings = p0.borders;
+    for (let i = 1; i < p0.parts; i++)
+      rings = rings.concat(
+        (await (await fetch(dataURL(`countries_part-${i}.json`))).json()).borders);
     const seg = [];
-    for (const ring of d.borders)
+    for (const ring of rings)
       for (let i = 0; i < ring.length - 1; i++) {
         seg.push(latLonToVec3(ring[i][1], ring[i][0], R * 1.002));
         seg.push(latLonToVec3(ring[i + 1][1], ring[i + 1][0], R * 1.002));
