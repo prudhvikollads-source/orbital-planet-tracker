@@ -36,7 +36,7 @@ const actions = {
   flyTo: (lat, lon) => G.flyTo(lat, lon),
   toggle: (layer, on) => {
     L.setVisible(layer, on);
-    $( { flights: 'tgl-flights', sats: 'tgl-sats', quakes: 'tgl-quakes' }[layer]).checked = on;
+    $( { flights: 'tgl-flights', sats: 'tgl-sats', quakes: 'tgl-quakes', borders: 'tgl-borders' }[layer]).checked = on;
   },
 };
 
@@ -52,6 +52,7 @@ async function boot() {
     L.loadFlights().then(renderCounts).catch(e => console.warn('flights', e)),
     L.loadSats().then(renderCounts).catch(e => console.warn('sats', e)),
     L.loadQuakes().then(renderCounts).catch(e => console.warn('quakes', e)),
+    L.loadBorders().catch(e => console.warn('borders', e)),
   ]);
   ready = true; renderCounts();
 
@@ -61,6 +62,7 @@ async function boot() {
   $('tgl-flights').onchange = e => L.setVisible('flights', e.target.checked);
   $('tgl-sats').onchange = e => L.setVisible('sats', e.target.checked);
   $('tgl-quakes').onchange = e => L.setVisible('quakes', e.target.checked);
+  $('tgl-borders').onchange = e => L.setVisible('borders', e.target.checked);
 
   // Search -> fly.
   const go = () => {
