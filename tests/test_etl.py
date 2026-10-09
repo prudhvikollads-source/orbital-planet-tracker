@@ -24,7 +24,7 @@ def test_flight_snapshot_schema():
     assert meta["fields"] == ["icao24", "callsign", "lon", "lat", "alt_m",
                               "vel_ms", "hdg_deg"]
     assert meta["fetched_at"].endswith("Z")
-    assert meta["sampled"] == len(flights) <= 2500
+    assert meta["sampled"] == len(flights) <= 6000
     assert meta["total_airborne"] >= len(flights) > 1000
     for f in flights[:200]:
         assert isinstance(f[0], str) and len(f[0]) == 6, f  # icao24
@@ -33,13 +33,28 @@ def test_flight_snapshot_schema():
         assert 0 <= f[6] < 360  # heading
 
 
-def test_flight_sample_is_deterministic_and_spread():
+def test_flight_sample_is_stratified_global():
+    # Stratified sampling: deterministic, no duplicates, every region covered.
+    from collections import Counter
     _, flights = load_flights()
     ids = [f[0] for f in flights]
-    assert ids == sorted(ids), "stride sample must preserve icao24 sort order"
     assert len(set(ids)) == len(ids), "no duplicate aircraft"
+
+    def region(lat, lon):
+        if 25 <= lat <= 72 and -170 <= lon <= -55: return "north_america"
+        if 36 <= lat <= 72 and -12 <= lon <= 45: return "europe"
+        if 5 <= lat <= 55 and 45 <= lon <= 145: return "asia"
+        if -55 <= lat <= 12 and -82 <= lon <= -35: return "south_america"
+        if -35 <= lat <= 36 and -20 <= lon <= 60: return "africa_me"
+        if -50 <= lat <= -10 and 110 <= lon <= 180: return "oceania"
+        return "rest"
+    counts = Counter(region(f[3], f[2]) for f in flights)
+    # minimums reflect genuine OpenSky receiver coverage (Oceania is truly thin)
+    minimums = {"north_america": 500, "europe": 500, "asia": 200,
+                "south_america": 100, "africa_me": 100, "oceania": 20}
+    for r, min_n in minimums.items():
+        assert counts[r] >= min_n, f"{r} underrepresented: {counts[r]}"
     lons = [f[2] for f in flights]
-    # a global feed must span the planet, not cluster in one region
     assert max(lons) - min(lons) > 200
 
 
