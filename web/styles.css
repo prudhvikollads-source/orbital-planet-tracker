@@ -28,6 +28,13 @@ main{flex:1;display:flex;min-height:0}
 #hud .t-pos{font-family:ui-monospace,monospace;color:var(--dim)}
 #hud button{background:none;border:1px solid var(--line);border-radius:8px;color:var(--dim);cursor:pointer;padding:2px 8px}
 #hud button:hover{color:#fff;border-color:var(--rd)}
+#hud .t-cs{font-weight:700;font-size:14px;color:#fff}
+#hud .t-route{color:var(--tx);font-weight:600}
+#hud .t-arrow{color:var(--cy)}
+#hud .t-prog{width:180px;height:4px;border-radius:2px;background:#1e293b;overflow:hidden}
+#hud .t-prog div{height:100%;background:linear-gradient(90deg,var(--cy),#a5f3fc)}
+#hud .t-eta{font-family:ui-monospace,monospace;color:#a5f3fc}
+#hud .t-est{font-size:10px;color:var(--dim);font-style:italic}
 #analyst{width:340px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;z-index:10}
 .ahead{padding:12px 14px;font-weight:700;letter-spacing:2px;font-size:12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
 #amode{font-size:10px;background:#16202f;border:1px solid var(--line);padding:2px 8px;border-radius:10px;color:var(--cy);letter-spacing:1px}
