@@ -25,12 +25,13 @@ Live planet-scale data is public — ADS-B transponders, orbital element sets, s
 - **🔍 Fly-to search** — 40 bundled world cities, no geocoder key.
 - **🏷️ Honesty UI** — per-layer "updated Xs ago" badges, true-vs-sampled counts, LIVE/SNAPSHOT states.
 - **🗺️ Country borders + airspace intel** — 180 country boundaries drawn on the globe; every flight tagged with the country it's over (point-in-polygon in the ETL). Click a plane to see its country; ask the analyst "flights over France?" or "busiest airspace by country?"
+- **🛫 Flight route cards** — click any aircraft for a FlightRadar24-style panel: origin → destination, live progress bar, ETA and distance-to-go, altitude/speed/heading/squawk. Routes are *estimated* from live track geometry (nearest airport along the flight's track cone + climb/descent state, resolved against 4,568 real airports) — no keyless filed-plan API exists, so the method is documented and the UI labels it.
 
 ## 📡 Live data (measured 2026-10-09)
 
 | Layer | Source | Captured |
 |---|---|---|
-| Flights | OpenSky Network | **11,544 airborne** → 4,477 sampled, stratified by region, each tagged with its country |
+| Flights | OpenSky Network | **11,517 airborne** → 4,516 sampled, stratified by region; each tagged with country + estimated route |
 | Satellites | CelesTrak (8 groups) | **551 TLEs**, SGP4-propagated live |
 | Earthquakes | USGS (M2.5+, 24h) | **34 quakes**, max M5.9 |
 
