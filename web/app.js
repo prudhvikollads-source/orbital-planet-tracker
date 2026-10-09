@@ -30,7 +30,8 @@ function renderCounts() {
 }
 
 function getState() {
-  return { ready, flights: L.flights, sats: L.sats, quakes: L.quakes, cities };
+  return { ready, flights: L.flights, sats: L.sats, quakes: L.quakes, cities,
+           airports: L.airports };
 }
 const actions = {
   flyTo: (lat, lon) => G.flyTo(lat, lon),
@@ -53,6 +54,7 @@ async function boot() {
     L.loadSats().then(renderCounts).catch(e => console.warn('sats', e)),
     L.loadQuakes().then(renderCounts).catch(e => console.warn('quakes', e)),
     L.loadBorders().catch(e => console.warn('borders', e)),
+    L.loadAirports().catch(e => console.warn('airports', e)),
   ]);
   ready = true; renderCounts();
 
