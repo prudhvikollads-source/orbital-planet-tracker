@@ -12,7 +12,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 system-ui,sans-serif;he
 .layers input{accent-color:var(--cy)}
 .layers b{color:var(--txt);font-family:ui-monospace,monospace}
 .sw{width:10px;height:10px;border-radius:50%;display:inline-block}
-.sw.f{background:#7dd3fc}.sw.s{background:#c4b5fd}.sw.q{background:#fb923c}
+.sw.f{background:#7dd3fc}.sw.s{background:#c4b5fd}.sw.q{background:#fb923c}.sw.b{background:#4c6ef5;border-radius:2px}
 .fresh{margin-left:auto;font-size:11px;color:var(--dim);font-family:ui-monospace,monospace;white-space:nowrap}
 main{flex:1;display:flex;min-height:0}
 #stage{flex:1;position:relative;min-width:0}
