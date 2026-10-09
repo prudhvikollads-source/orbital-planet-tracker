@@ -17,8 +17,20 @@ import requests
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIVE = os.path.join(ROOT, "data", "live")
 
-FLIGHT_CAP = 2500      # snapshot cap: static-hosting size honesty (see README)
-SHARD = 900            # flights per part file (GitHub API arg limits)
+FLIGHT_CAP = 6000      # snapshot cap: static-hosting size honesty (see README)
+SHARD = 1200           # flights per part file (GitHub API arg limits)
+# Stratified sampling regions (name, lat_min, lat_max, lon_min, lon_max, cap).
+# Checked in order; rest_of_world is the catch-all. Guarantees every region
+# is represented instead of letting receiver-dense US/EU drown the planet.
+FLIGHT_REGIONS = [
+    ("north_america",    25,  72, -170,  -55, 1500),
+    ("europe",           36,  72,  -12,   45, 1500),
+    ("asia",              5,  55,   45,  145, 1000),
+    ("south_america",   -55,  12,  -82,  -35,  500),
+    ("africa_me",       -35,  36,  -20,   60,  500),
+    ("oceania",         -50, -10,  110,  180,  500),
+    ("rest_of_world",   -90,  90, -180,  180,  500),
+]
 TLE_GROUPS = ["stations", "visual", "weather", "goes",
               "sarsat", "tdrss", "planet", "spire"]
 
@@ -27,8 +39,15 @@ def utcnow():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def region_of(lat, lon):
+    for name, la0, la1, lo0, lo1, _ in FLIGHT_REGIONS:
+        if la0 <= lat <= la1 and lo0 <= lon <= lo1:
+            return name
+    return "rest_of_world"
+
+
 def fetch_flights(check):
-    """OpenSky states -> airborne, compact, stride-sampled, sharded."""
+    """OpenSky states -> airborne, compact, stratified by region, sharded."""
     r = requests.get("https://opensky-network.org/api/states/all", timeout=60)
     r.raise_for_status()
     states = r.json().get("states") or []
@@ -47,13 +66,23 @@ def fetch_flights(check):
         recs.append([s[0], (s[1] or "").strip() or None,
                      round(lon, 3), round(lat, 3),
                      int(alt), round(vel, 1), int(hdg)])
-    recs.sort(key=lambda f: f[0])
+    recs.sort(key=lambda f: f[0])  # deterministic before bucketing
     total = len(recs)
-    if total > FLIGHT_CAP:  # deterministic stride sample, not head-biased
-        stride = total / FLIGHT_CAP
-        recs = [recs[int(i * stride)] for i in range(FLIGHT_CAP)]
+    # Stratified: cap each region so receiver-dense areas can't drown the planet.
+    caps = {name: cap for name, _, _, _, _, cap in FLIGHT_REGIONS}
+    buckets = {name: [] for name, _, _, _, _, _ in FLIGHT_REGIONS}
+    for f in recs:
+        buckets[region_of(f[3], f[2])].append(f)
+    sampled, per_region = [], {}
+    for name, _, _, _, _, _ in FLIGHT_REGIONS:
+        take = buckets[name][:caps[name]]
+        per_region[name] = len(take)
+        sampled.extend(take)
+    recs = sampled
     snap = {"fetched_at": utcnow(), "source": "opensky-network",
             "total_airborne": total, "sampled": len(recs),
+            "sampling": "stratified by region (guaranteed global coverage)",
+            "per_region": per_region,
             "fields": ["icao24", "callsign", "lon", "lat", "alt_m",
                        "vel_ms", "hdg_deg"]}
     parts = [recs[i:i + SHARD] for i in range(0, len(recs), SHARD)] or [[]]
