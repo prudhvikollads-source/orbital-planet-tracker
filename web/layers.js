@@ -13,12 +13,12 @@ function flightColor(alt) {
   return [0.88, 0.95, 1.0];                     // cruise -> ice
 }
 
-function makeCloud(n, tex) {
+function makeCloud(n, tex, px) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
   g.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
   g.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(n), 1));
-  const pts = new THREE.Points(g, pointsMaterial(tex));
+  const pts = new THREE.Points(g, pointsMaterial(tex, 0.95, px));
   pts.frustumCulled = false;
   return pts;
 }
@@ -34,6 +34,7 @@ function flagDirty(pts) {
 }
 
 export function createLayers(G, tex) {
+  const PX = (G.renderer && G.renderer.getPixelRatio()) || 1; // device px per CSS px
   const flights = { list: [], pts: null, meta: null };
   const sats = { list: [], pts: null, meta: null, tick: 0 };
   const quakes = { list: [], pts: null, meta: null };
@@ -46,7 +47,7 @@ export function createLayers(G, tex) {
     flights.meta = p0; flights.list = all.map(f => ({
       id: f[0], cs: f[1] || f[0], lon: f[2], lat: f[3],
       alt: f[4], vel: f[5], hdg: f[6], t0: T0 }));
-    flights.pts = makeCloud(flights.list.length, tex);
+    flights.pts = makeCloud(flights.list.length, tex, PX);
     G.globe.add(flights.pts);
     refreshFlightPoints(0);
   }
@@ -78,7 +79,7 @@ export function createLayers(G, tex) {
       try { rec = satellite.twoline2satrec(s.l1, s.l2); } catch (_) { /* skip */ }
       return { name: s.n, group: s.g, rec, lat: 0, lon: 0, altKm: 0, vel: 0 };
     }).filter(s => s.rec);
-    sats.pts = makeCloud(sats.list.length, tex);
+    sats.pts = makeCloud(sats.list.length, tex, PX);
     G.globe.add(sats.pts);
     propagateSats(new Date());
   }
@@ -106,7 +107,7 @@ export function createLayers(G, tex) {
   async function loadQuakes() {
     const d = await (await fetch(dataURL('live/quakes.json'))).json();
     quakes.meta = d; quakes.list = d.quakes;
-    quakes.pts = makeCloud(quakes.list.length, tex);
+    quakes.pts = makeCloud(quakes.list.length, tex, PX);
     G.globe.add(quakes.pts);
   }
   function refreshQuakes(now) {
