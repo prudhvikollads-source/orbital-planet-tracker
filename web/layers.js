@@ -1,7 +1,7 @@
 // Live layers: flights (dead-reckoned Points), satellites (SGP4 via satellite.js),
 // earthquakes (pulsing Points). All geometry in globe-local coordinates.
 import * as THREE from 'three';
-import { latLonToVec3, pointsMaterial, R } from './globe.js';
+import { latLonToVec3, pointsMaterial, orientedPointsMaterial, planeTexture, R } from './globe.js';
 /* global satellite */
 
 const dataURL = p => new URL('../data/' + p, import.meta.url).href;
@@ -13,28 +13,33 @@ function flightColor(alt) {
   return [0.88, 0.95, 1.0];                     // cruise -> ice
 }
 
-function makeCloud(n, tex, px) {
+function makeCloud(n, tex, px, oriented) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
   g.setAttribute('aColor', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
   g.setAttribute('aSize', new THREE.BufferAttribute(new Float32Array(n), 1));
-  const pts = new THREE.Points(g, pointsMaterial(tex, 0.95, px));
+  g.setAttribute('aHdg', new THREE.BufferAttribute(new Float32Array(n), 1));
+  const pts = new THREE.Points(g,
+    oriented ? orientedPointsMaterial(tex, px) : pointsMaterial(tex, 0.95, px));
   pts.frustumCulled = false;
   return pts;
 }
-function setPoint(pts, i, v, color, size) {
+function setPoint(pts, i, v, color, size, hdg = 0) {
   pts.geometry.attributes.position.set([v.x, v.y, v.z], i * 3);
   pts.geometry.attributes.aColor.set(color, i * 3);
   pts.geometry.attributes.aSize.set([size], i);
+  pts.geometry.attributes.aHdg.set([hdg], i);
 }
 function flagDirty(pts) {
   pts.geometry.attributes.position.needsUpdate = true;
   pts.geometry.attributes.aColor.needsUpdate = true;
   pts.geometry.attributes.aSize.needsUpdate = true;
+  pts.geometry.attributes.aHdg.needsUpdate = true;
 }
 
 export function createLayers(G, tex) {
   const PX = (G.renderer && G.renderer.getPixelRatio()) || 1; // device px per CSS px
+  const planeTex = planeTexture(); // flights render as heading-oriented aircraft
   const flights = { list: [], pts: null, meta: null };
   const sats = { list: [], pts: null, meta: null, tick: 0 };
   const quakes = { list: [], pts: null, meta: null };
@@ -47,7 +52,7 @@ export function createLayers(G, tex) {
     flights.meta = p0; flights.list = all.map(f => ({
       id: f[0], cs: f[1] || f[0], lon: f[2], lat: f[3],
       alt: f[4], vel: f[5], hdg: f[6], t0: T0 }));
-    flights.pts = makeCloud(flights.list.length, tex, PX);
+    flights.pts = makeCloud(flights.list.length, planeTex, PX, true);
     G.globe.add(flights.pts);
     refreshFlightPoints(0);
   }
@@ -66,7 +71,7 @@ export function createLayers(G, tex) {
       const [lat, lon] = deadReckon(f, now);
       f._lat = lat; f._lon = lon;
       setPoint(flights.pts, i, v.copy(latLonToVec3(lat, lon, R * 1.004)),
-               flightColor(f.alt), 5.5);
+               flightColor(f.alt), 8, f.hdg || 0);
     });
     flagDirty(flights.pts);
   }
