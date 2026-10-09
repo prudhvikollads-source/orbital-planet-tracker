@@ -75,7 +75,7 @@ export function createTracker(G, layers, tex) {
     if (t.type === 'flight') {
       const f = t.obj, [lat, lon] = layers.deadReckon(f, Date.now());
       tele = `${Math.round(f.alt * 3.281)} ft · ${Math.round(f.vel * 1.944)} kts · hdg ${String(f.hdg).padStart(3, '0')}°`;
-      pos = `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+      pos = `${lat.toFixed(2)}, ${lon.toFixed(2)} · over ${f.country ? esc(f.country) : 'international waters'}`;
     } else if (t.type === 'sat') {
       const s = t.obj;
       tele = `alt ${Math.round(s.altKm)} km · ${s.vel.toFixed(2)} km/s · ${esc(s.group)}`;
