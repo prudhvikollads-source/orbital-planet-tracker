@@ -72,10 +72,35 @@ export function createAnalyst(getState, actions) {
       `centered near <b>${near ? near.name : `${clat.toFixed(0)}°, ${clon.toFixed(0)}°`}</b>.`);
     actions.flyTo(clat, clon);
   }
+  function topAirspace(st) {
+    // Busiest national airspaces, counted from per-flight country tags.
+    const c = {};
+    for (const f of st.flights.list) {
+      const k = f.country || 'international waters';
+      c[k] = (c[k] || 0) + 1;
+    }
+    const top = Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    if (!top.length) return say('No flight data loaded yet.');
+    say(`Busiest airspaces right now:<br>` +
+      top.map(([k, n], i) => `${i + 1}. <b>${esc(k)}</b> — ${n.toLocaleString()} flights`).join('<br>'));
+  }
+  function overCountry(st, ql) {
+    const names = [...new Set(st.flights.list.map(f => f.country).filter(Boolean))];
+    const hit = names.find(n => ql.includes(n.toLowerCase()));
+    if (!hit) return false;
+    const list = st.flights.list.filter(f => f.country === hit);
+    const avg = list.reduce((a, f) => a + f.alt, 0) / list.length;
+    say(`<b>${list.length.toLocaleString()}</b> flights are over <b>${esc(hit)}</b> right now ` +
+      `(avg altitude ${Math.round(avg * 3.281).toLocaleString()} ft).`);
+    const f0 = list[0];
+    actions.flyTo(f0._lat ?? f0.lat, f0._lon ?? f0.lon);
+    return true;
+  }
   function help() {
     say(`I answer from the live scene — try:<br>• "How many flights are airborne?"<br>` +
       `• "Where is the ISS right now?"<br>• "Biggest earthquake today?"<br>` +
-      `• "Which region is busiest?"<br>• "Fly to Tokyo"<br>• "Hide satellites"<br><br>` +
+      `• "Flights over France?"<br>• "Busiest airspace by country?"<br>` +
+      `• "Fly to Tokyo"<br>• "Hide satellites"<br><br>` +
       `Add an LLM key below for open-ended questions.`);
   }
 
@@ -100,7 +125,11 @@ export function createAnalyst(getState, actions) {
     try {
       if (/iss\b|space station/.test(ql)) return iss(st);
       if (/quake|earthquake|tremor/.test(ql)) return quake(st);
+      if (/busiest airspace|top countr/.test(ql)) return topAirspace(st);
       if (/busiest|hotspot|region|traffic/.test(ql)) return hotspot(st);
+      if (/over|airspace/.test(ql) && /flight|plane|aircraft|many/.test(ql)) {
+        if (overCountry(st, ql)) return;
+      }
       if (/how many|count|airborne|flying/.test(ql)) return counts(st);
       if (/^(hide|show) /.test(ql)) {
         const layer = /sat/.test(ql) ? 'sats' : /flight|plane/.test(ql) ? 'flights' : /quake/.test(ql) ? 'quakes' : null;
