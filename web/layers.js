@@ -44,6 +44,18 @@ export function createLayers(G, tex) {
   const sats = { list: [], pts: null, meta: null, tick: 0 };
   const quakes = { list: [], pts: null, meta: null };
   let borders = null;
+  let airports = null; // iata -> {name, city, lat, lon, large}
+
+  // Airport database (sharded): for route display + ETA.
+  async function loadAirports() {
+    const p0 = await (await fetch(dataURL('airports_part-0.json'))).json();
+    let recs = p0.airports;
+    for (let i = 1; i < p0.parts; i++)
+      recs = recs.concat(
+        (await (await fetch(dataURL(`airports_part-${i}.json`))).json()).airports);
+    airports = {};
+    for (const r of recs) airports[r[0]] = { name: r[1], city: r[2], lat: r[3], lon: r[4] };
+  }
 
   // Country borders: baked 110m line segments (sharded), drawn once.
   async function loadBorders() {
@@ -71,7 +83,9 @@ export function createLayers(G, tex) {
       all = all.concat((await (await fetch(dataURL(`live/flights/part-${i}.json`))).json()).flights);
     flights.meta = p0; flights.list = all.map(f => ({
       id: f[0], cs: f[1] || f[0], lon: f[2], lat: f[3],
-      alt: f[4], vel: f[5], hdg: f[6], country: f[7] || null, t0: T0 }));
+      alt: f[4], vel: f[5], hdg: f[6], country: f[7] || null,
+      orig: f[8] || null, dest: f[9] || null,
+      squawk: f[10] || null, vspeed: f[11] || 0, t0: T0 }));
     flights.pts = makeCloud(flights.list.length, planeTex, PX, true);
     G.globe.add(flights.pts);
     refreshFlightPoints(0);
@@ -185,5 +199,6 @@ export function createLayers(G, tex) {
   }
 
   return { flights, sats, quakes, loadFlights, loadSats, loadQuakes, loadBorders,
+           loadAirports, get airports() { return airports; },
            update, setVisible, pick, flightPos, satPos, deadReckon };
 }
