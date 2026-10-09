@@ -67,6 +67,46 @@ export function createTracker(G, layers, tex) {
     G.setAutoRotate(true);
   }
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const havKm = (la1, lo1, la2, lo2) => {
+    const p1 = la1 * Math.PI / 180, p2 = la2 * Math.PI / 180;
+    const dp = (la2 - la1) * Math.PI / 180, dl = (lo2 - lo1) * Math.PI / 180;
+    const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+    return 12742 * Math.asin(Math.sqrt(a));
+  };
+
+  // FlightRadar24-style route card: origin → destination, progress, ETA.
+  // Route is estimated from live track geometry (see README) — labeled as such.
+  function flightCard(f, lat, lon) {
+    const A = layers.airports || {};
+    const o = f.orig && A[f.orig], d = f.dest && A[f.dest];
+    const oTxt = o ? `${esc(f.orig)} · ${esc(o.city || o.name)}` : '—';
+    const dTxt = d ? `${esc(f.dest)} · ${esc(d.city || d.name)}` : '—';
+    let etaLine = '', prog = '';
+    if (d && f.vel > 20) {
+      const rem = havKm(lat, lon, d.lat, d.lon);
+      const hrs = rem / (f.vel * 3.6);
+      const hh = Math.floor(hrs), mm = Math.round((hrs - hh) * 60);
+      etaLine = `<span class="t-eta">ETA ~${hh}h${String(mm).padStart(2, '0')}m · ${Math.round(rem).toLocaleString()} km to go</span>`;
+      if (o) {
+        const total = havKm(o.lat, o.lon, d.lat, d.lon);
+        const pct = total > 1 ? Math.min(99, Math.max(1, Math.round(100 * (1 - rem / total)))) : 0;
+        prog = `<div class="t-prog"><div style="width:${pct}%"></div></div>`;
+      }
+    } else if (f.vel <= 20) {
+      etaLine = `<span class="t-eta">${f.alt < 1500 ? 'on ground / taxiing' : 'holding pattern'}</span>`;
+    }
+    const tele = `${Math.round(f.alt * 3.281).toLocaleString()} ft · ${Math.round(f.vel * 1.944)} kts · hdg ${String(f.hdg).padStart(3, '0')}°` +
+      (f.squawk ? ` · sqwk ${esc(f.squawk)}` : '');
+    const where = f.country ? `over ${esc(f.country)}` : 'over international waters';
+    return `<span class="rec"></span><b>TRACKING</b>
+      <span class="t-cs">${esc(f.cs || f.id)}</span>
+      <span class="t-route">${oTxt} <span class="t-arrow">→</span> ${dTxt}</span>
+      ${prog}${etaLine}
+      <span class="t-tele">${tele}</span>
+      <span class="t-pos">${lat.toFixed(2)}, ${lon.toFixed(2)} · ${where}</span>
+      <span class="t-est">route estimated from live track</span>
+      <button id="rel">✕</button>`;
+  }
 
   function renderHUD() {
     if (!target) return;
@@ -74,20 +114,22 @@ export function createTracker(G, layers, tex) {
     let tele = '', pos = '';
     if (t.type === 'flight') {
       const f = t.obj, [lat, lon] = layers.deadReckon(f, Date.now());
-      tele = `${Math.round(f.alt * 3.281)} ft · ${Math.round(f.vel * 1.944)} kts · hdg ${String(f.hdg).padStart(3, '0')}°`;
-      pos = `${lat.toFixed(2)}, ${lon.toFixed(2)} · over ${f.country ? esc(f.country) : 'international waters'}`;
-    } else if (t.type === 'sat') {
-      const s = t.obj;
-      tele = `alt ${Math.round(s.altKm)} km · ${s.vel.toFixed(2)} km/s · ${esc(s.group)}`;
-      pos = `${s.lat.toFixed(2)}, ${s.lon.toFixed(2)}`;
+      hud.innerHTML = flightCard(f, lat, lon);
     } else {
-      const q = t.obj;
-      tele = `M${q.mag} · depth ${q.depth_km} km`;
-      pos = esc(q.place || '');
+      let tele = '', pos = '';
+      if (t.type === 'sat') {
+        const s = t.obj;
+        tele = `alt ${Math.round(s.altKm)} km · ${s.vel.toFixed(2)} km/s · ${esc(s.group)}`;
+        pos = `${s.lat.toFixed(2)}, ${s.lon.toFixed(2)}`;
+      } else {
+        const q = t.obj;
+        tele = `M${q.mag} · depth ${q.depth_km} km`;
+        pos = esc(q.place || '');
+      }
+      hud.innerHTML = `<span class="rec"></span><b>TRACKING</b>
+        <span>${esc(t.label)}</span><span class="t-tele">${tele}</span>
+        <span class="t-pos">${pos}</span><button id="rel">✕</button>`;
     }
-    hud.innerHTML = `<span class="rec"></span><b>TRACKING</b>
-      <span>${esc(t.label)}</span><span class="t-tele">${tele}</span>
-      <span class="t-pos">${pos}</span><button id="rel">✕</button>`;
     document.getElementById('rel').onclick = e => { e.stopPropagation(); release(); };
   }
 
