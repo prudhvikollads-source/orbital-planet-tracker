@@ -1,0 +1,85 @@
+"""Tests for the ORBITAL ETL: snapshot schema, sampling honesty, TLE sanity."""
+import json
+import math
+import os
+
+import pytest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LIVE = os.path.join(ROOT, "data", "live")
+
+
+def load_flights():
+    p0 = json.load(open(os.path.join(LIVE, "flights", "part-0.json")))
+    out = list(p0["flights"])
+    for i in range(1, p0["parts"]):
+        out += json.load(open(os.path.join(LIVE, "flights",
+                                           f"part-{i}.json")))["flights"]
+    return p0, out
+
+
+def test_flight_snapshot_schema():
+    meta, flights = load_flights()
+    assert meta["source"] == "opensky-network"
+    assert meta["fields"] == ["icao24", "callsign", "lon", "lat", "alt_m",
+                              "vel_ms", "hdg_deg"]
+    assert meta["fetched_at"].endswith("Z")
+    assert meta["sampled"] == len(flights) <= 2500
+    assert meta["total_airborne"] >= len(flights) > 1000
+    for f in flights[:200]:
+        assert isinstance(f[0], str) and len(f[0]) == 6, f  # icao24
+        assert -180 <= f[2] <= 180 and -90 <= f[3] <= 90
+        assert f[4] > 300  # alt_m, airborne filter
+        assert 0 <= f[6] < 360  # heading
+
+
+def test_flight_sample_is_deterministic_and_spread():
+    _, flights = load_flights()
+    ids = [f[0] for f in flights]
+    assert ids == sorted(ids), "stride sample must preserve icao24 sort order"
+    assert len(set(ids)) == len(ids), "no duplicate aircraft"
+    lons = [f[2] for f in flights]
+    # a global feed must span the planet, not cluster in one region
+    assert max(lons) - min(lons) > 200
+
+
+def test_dead_reckoning_math():
+    # vel=250 m/s due east for 60 s at the equator ≈ 0.135°
+    lon, lat, vel, hdg = 0.0, 0.0, 250.0, 90
+    d = vel * 60
+    dlon = d * math.sin(math.radians(hdg)) / 111319.9
+    assert abs(dlon - 0.1347) < 0.002, dlon
+
+
+def test_tle_bundle_parses():
+    d = json.load(open(os.path.join(LIVE, "tles.json")))
+    assert d["source"] == "celestrak"
+    assert 300 <= d["count"] == len(d["sats"]) <= 800
+    groups = {s["g"] for s in d["sats"]}
+    assert {"stations", "visual", "weather"} <= groups
+    for s in d["sats"][:50]:
+        assert s["l1"].startswith("1 ") and s["l2"].startswith("2 "), s["n"]
+        assert len(s["l1"]) >= 69 and len(s["l2"]) >= 69  # full TLE lines
+    names = " ".join(s["n"] for s in d["sats"])
+    assert "ISS" in names, "ISS must be in the stations group"
+
+
+def test_quake_schema():
+    d = json.load(open(os.path.join(LIVE, "quakes.json")))
+    assert d["source"] == "usgs"
+    assert d["count"] == len(d["quakes"]) > 0
+    mags = [q["mag"] for q in d["quakes"]]
+    assert mags == sorted(mags, reverse=True), "sorted by magnitude desc"
+    assert all(2.5 <= m <= 10 for m in mags)
+    for q in d["quakes"]:
+        assert -90 <= q["lat"] <= 90 and -180 <= q["lon"] <= 180
+
+
+def test_cities_search_list():
+    d = json.load(open(os.path.join(ROOT, "data", "cities.json")))
+    names = [c["name"] for c in d["cities"]]
+    assert len(names) >= 30
+    for want in ("Tokyo", "London", "New York", "Sydney"):
+        assert want in names
+    for c in d["cities"]:
+        assert -90 <= c["lat"] <= 90 and -180 <= c["lon"] <= 180
