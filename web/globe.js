@@ -23,12 +23,12 @@ export function glowTexture() {
   const t = new THREE.CanvasTexture(c); return t;
 }
 
-export function pointsMaterial(tex, opacity = 0.95) {
+export function pointsMaterial(tex, opacity = 0.95, px = 1) {
   return new THREE.ShaderMaterial({
-    uniforms: { uTex: { value: tex }, uOp: { value: opacity } },
-    vertexShader: `attribute float aSize; attribute vec3 aColor; varying vec3 vC;
+    uniforms: { uTex: { value: tex }, uOp: { value: opacity }, uPx: { value: px } },
+    vertexShader: `attribute float aSize; attribute vec3 aColor; varying vec3 vC; uniform float uPx;
       void main(){ vC=aColor; vec4 mv=modelViewMatrix*vec4(position,1.0);
-        gl_PointSize=aSize*(320.0/-mv.z); gl_Position=projectionMatrix*mv; }`,
+        gl_PointSize=aSize*uPx*(2.1/-mv.z); gl_Position=projectionMatrix*mv; }`,
     fragmentShader: `uniform sampler2D uTex; uniform float uOp; varying vec3 vC;
       void main(){ float a=texture2D(uTex,gl_PointCoord).a;
         gl_FragColor=vec4(vC,a*uOp); }`,
