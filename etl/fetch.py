@@ -34,6 +34,48 @@ FLIGHT_REGIONS = [
 TLE_GROUPS = ["stations", "visual", "weather", "goes",
               "sarsat", "tdrss", "planet", "spire"]
 
+# --- country lookup (point-in-polygon over baked 110m boundaries) ---
+_COUNTRIES = None
+
+
+def load_countries():
+    global _COUNTRIES
+    if _COUNTRIES is None:
+        with open(os.path.join(ROOT, "data", "countries_lookup.json")) as f:
+            _COUNTRIES = json.load(f)
+    return _COUNTRIES
+
+
+def _in_ring(lon, lat, ring):
+    inside = False
+    j = len(ring) - 1
+    for i in range(len(ring)):
+        xi, yi = ring[i]
+        xj, yj = ring[j]
+        if ((yi > lat) != (yj > lat)) and \
+                (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def _country_at(lon, lat):
+    for c in load_countries():
+        b = c["bbox"]
+        if not (b[0] <= lon <= b[2] and b[1] <= lat <= b[3]):
+            continue
+        for poly in c["polys"]:
+            if _in_ring(lon, lat, poly[0]) and \
+                    not any(_in_ring(lon, lat, h) for h in poly[1:]):
+                return c["name"]
+    return None
+
+
+def country_of(lon, lat):
+    """Country name under (lon, lat), or None over oceans/unmapped."""
+    return (_country_at(lon, lat) or _country_at(lon + 360, lat)
+            or _country_at(lon - 360, lat))
+
 
 def utcnow():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -65,7 +107,8 @@ def fetch_flights(check):
         hdg = s[10] if s[10] is not None else 0
         recs.append([s[0], (s[1] or "").strip() or None,
                      round(lon, 3), round(lat, 3),
-                     int(alt), round(vel, 1), int(hdg)])
+                     int(alt), round(vel, 1), int(hdg),
+                     country_of(lon, lat)])
     recs.sort(key=lambda f: f[0])  # deterministic before bucketing
     total = len(recs)
     # Stratified: cap each region so receiver-dense areas can't drown the planet.
@@ -84,7 +127,7 @@ def fetch_flights(check):
             "sampling": "stratified by region (guaranteed global coverage)",
             "per_region": per_region,
             "fields": ["icao24", "callsign", "lon", "lat", "alt_m",
-                       "vel_ms", "hdg_deg"]}
+                       "vel_ms", "hdg_deg", "country"]}
     parts = [recs[i:i + SHARD] for i in range(0, len(recs), SHARD)] or [[]]
     d = os.path.join(LIVE, "flights")
     if not check:
