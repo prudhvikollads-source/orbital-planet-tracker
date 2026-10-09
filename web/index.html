@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ORBITAL — Live Planet Intelligence</title>
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}
+</script>
+</head>
+<body>
+<header id="topbar">
+  <div class="brand"><span class="pulse-dot"></span>ORBITAL <span class="tag">every dot is real</span></div>
+  <div class="layers">
+    <label><input type="checkbox" id="tgl-flights" checked> <span class="sw f"></span>flights <b id="c-flights">–</b></label>
+    <label><input type="checkbox" id="tgl-sats" checked> <span class="sw s"></span>satellites <b id="c-sats">–</b></label>
+    <label><input type="checkbox" id="tgl-quakes" checked> <span class="sw q"></span>quakes <b id="c-quakes">–</b></label>
+  </div>
+  <div class="fresh">updated <span id="upd-flights">–</span> · <span id="upd-sats">–</span> · <span id="upd-quakes">–</span></div>
+</header>
+
+<main>
+  <div id="stage"><canvas id="globe"></canvas>
+    <div id="hud" class="hidden"></div>
+    <div id="search"><input id="q" placeholder="fly to Tokyo…" autocomplete="off"><button id="go">→</button></div>
+    <div class="hint">drag to spin · scroll to zoom · click anything to track it · esc releases</div>
+  </div>
+
+  <aside id="analyst">
+    <div class="ahead">TALK TO ORBITAL <span id="amode">analyst</span></div>
+    <div id="chat"></div>
+    <div class="quick">
+      <button data-q="How many flights are airborne?">airborne</button>
+      <button data-q="Where is the ISS right now?">ISS</button>
+      <button data-q="Biggest earthquake today?">quakes</button>
+      <button data-q="Which region is busiest?">hotspot</button>
+    </div>
+    <form id="ask-form"><input id="ask" placeholder="Ask about the live planet…" autocomplete="off"><button id="mic" type="button" title="push to talk">🎙</button><button type="submit">→</button></form>
+    <details class="keybox"><summary>power up: LLM key (optional)</summary>
+      <input id="llm-key" type="password" placeholder="sk-… (this browser only)">
+      <button id="llm-save">save</button>
+      <p>Without a key the analyst computes from live scene data. A key unlocks open-ended questions.</p>
+    </details>
+  </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
